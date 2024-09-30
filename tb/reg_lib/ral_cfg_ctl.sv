@@ -6,10 +6,63 @@ class ral_cfg_ctl extends uvm_reg;
     rand uvm_reg_field profile;     // 1 : Peak, 0 : Off-Peak
 
     `uvm_object_utils(ral_cfg_ctl)
+// new code start
 
-    function new(string name = "traffic_cfg_ctrl");
+////////////////////////adding coverpoints     
+  
+ covergroup mod_cov;
+    
+   option.per_instance = 1;
+    
+    
+   coverpoint mod_en 
+    {
+      bins low = {0};
+      bins high = {1};
+    }
+
+    coverpoint bl_yellow;
+    coverpoint b1_red;
+    coverpoint profile;
+     
+  endgroup
+  
+ 
+  ////////////////checking coverage and adding new method to covergroup
+  
+  function new (string name = "ral_cfg_ctl");
+    super.new(name,32,UVM_CVR_FIELD_VALS);
+    
+    if(has_coverage(UVM_CVR_FIELD_VALS))
+      mod_en = new();
+    
+  endfunction
+ 
+//////////////////////////////   implementation of sample and sample_Values  
+  
+  
+  virtual function void sample(uvm_reg_data_t data,
+                                uvm_reg_data_t byte_en,
+                                bit            is_read,
+                                uvm_reg_map    map);
+    
+         mod_en.sample();
+   endfunction
+  
+  
+   virtual function void sample_values();
+    super.sample_values();
+     
+    mod_en.sample();
+     
+   endfunction
+
+
+    //new code end: jissjoseph1997
+
+   /* function new(string name = "traffic_cfg_ctrl");
         super.new(name, 32, build_coverage(UVM_NO_COVERAGE));
-    endfunction: new
+    endfunction: new */
 
     // Build all register field objects
     virtual function void build();
