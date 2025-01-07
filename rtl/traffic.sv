@@ -1,141 +1,85 @@
-module traffic (  input          pclk,
-                  input          presetn,
-                  input [31:0]   paddr,
-                  input [31:0]   pwdata,
-                  input          psel,
-                  input          pwrite,
-                  input          penable,
- 
-                  // Outputs
-                  output reg pready, pslverr,
-                  output [31:0]  prdata);
- 
-   reg [3:0]      ctl_reg;    // profile, blink_red, blink_yellow, mod_en RW
-   reg [1:0]      stat_reg;   // state[1:0] 
-   reg [31:0]     timer_0;    // timer_g2y[31:20], timer_r2g[19:8], timer_y2r[7:0] RW
-   reg [31:0]     timer_1;    // timer_g2y[31:20], timer_r2g[19:8], timer_y2r[7:0] RW
- 
-   reg [31:0]     data_in;
-   reg [31:0]     rdata_tmp;
-   typedef enum {idle = 0, setup = 1, access = 2, transfer = 3} state_type;
-   state_type state = idle, next_state = idle;
-   // Set all registers to default values
-   always @ (posedge pclk) begin
-      if (!presetn) begin
-         state <=idle;
-         prdata <=32'h00000000;
-         pready <= 1'b0;
-         pslverr<= 1'b0;
-         data_in <= 0;
-         ctl_reg  <= 0; 
-         stat_reg <= 0; 
-         timer_0  <= 32'hcafe_1234; 
-         timer_1  <= 32'hface_5678;
-      end
-      else
-      begin
-         case (state)
-         idle: 
-         begin
-            
-            prdata <=32'h00000000;
+module traffic (
+    input          pclk,
+    input          presetn,
+    input [31:0]   paddr,
+    input [31:0]   pwdata,
+    input          psel,
+    input          pwrite,
+    input          penable,
+    output reg     pready,
+    output reg     pslverr,
+    output reg [31:0] prdata
+);
+
+    // Internal registers
+    reg [3:0] ctl_reg;    
+    reg [31:0] timer_0;   
+    reg [31:0] timer_1;   
+
+    typedef enum logic [1:0] { IDLE, SETUP, ACCESS, TRANSFER } state_t;
+    state_t state;
+
+    // Reset and initialization
+    always @(posedge pclk or negedge presetn) begin
+        if (!presetn) begin
+            // Reset all internal states and registers
+            state <= IDLE;
+            ctl_reg <= 4'b0;
+            timer_0 <= 32'hcafe1234;
+            timer_1 <= 32'hface5678;
+            prdata <= 32'h0;
             pready <= 1'b0;
-            pslverr<= 1'b0;
-            data_in <= 0;
-            ctl_reg  <= 0; 
-            stat_reg <= 0; 
-            timer_0  <= 32'hcafe_1234; 
-            timer_1  <= 32'hface_5678;
-            if (psel == 1'b0) && (penable == 1'b0)
-            state<=setup;
-         end
-
-
-         setup:
-         begin
-            if ((psel == 1'b1) && (penable == 1'b0)) begin
-               if(paddr<32) begin
-                  state<=access;
-                  pready<=1'b1;
-            end
-            else begin
-               state <=access;
-               pready<=1'b0;
-            end
-
-            else
-            state<= setup;
-            end
-
-
-         end
-
-         access:
-         begin
-            if (psel && pwrite && penable)
-            begin
-               if(paddr<32)
-                begin
-               case (paddr)
-               'h0   : ctl_reg <= pwdata;
-               'h4   : timer_0 <= pwdata;
-               'h8   : timer_1 <= pwdata;
-               'hc   : stat_reg <= pwdata;
-                endcase
-                state <= transfer;
-                pslverr<=1'b0;
-
+            pslverr <= 1'b0;
+            $display("RESET: Registers reset to default values");
+        end else begin
+            case (state)
+                IDLE: begin
+                    pready <= 1'b0; // Ensure pready is deasserted
+                    if (psel && !penable) begin
+                        state <= SETUP;
+                        $display("IDLE: Detected psel, moving to SETUP");
+                    end
                 end
-               else
-               begin
-                 state <= transfer;
-                  pready <= 1'b1;
-                  pslverr <= 1'b1;
 
-               end
-
-               else if (psel && penable && !pwrite)
-
-               begin
-                  if (paddr<32)
-                  begin
-                 case (paddr )
-                'h0 : rdata_tmp <= ctl_reg;
-                  'h4 : rdata_tmp <= timer_0;
-                 'h8 : rdata_tmp <= timer_1;
-                'hc : rdata_tmp <= stat_reg;
-                  endcase
-                  state <= transfer;
-                 pready <= 1'b1;
-                pslverr <= 1'b0;
-                  end
-                  else
-                  begin
-                     state <= transfer;
-                     pready <= 1'b1;
-                     pslverr <= 1'b1;
-                     prdata <= 32'hxxxxxxxx;
-                  end
-
-               end
-
-
-            end
-
-         end
-
-         transfer:
-         begin
-         end
-         default: state<=idle;
-
-         endcase
-         assign prdata = (psel & penable & !pwrite) ? rdata_tmp : 'hz;
+                SETUP: begin
+                    if (psel && penable) begin
+                        state <= ACCESS;
+                        $display("SETUP: Detected penable, moving to ACCESS");
+                    end
+                end              
+      ACCESS: begin
+        if (psel && penable && (paddr<32)) begin
+      if (pwrite) begin
+            // Write operation
+            case (paddr)
+                32'h0: ctl_reg <= pwdata[3:0];
+                32'h4: timer_0 <= pwdata;
+                32'h8: timer_1 <= pwdata;
+                default: pslverr <= 1'b1;
+            endcase
+            $display("DUT WRITE: Addr=%h, Data=%h", paddr, pwdata);
+        end else begin
+            // Read operation
+            case (paddr)
+                32'h0: prdata <= {28'b0, ctl_reg};
+                32'h4: prdata <= timer_0;
+                32'h8: prdata <= timer_1;
+                default: prdata <= 32'hDEADBEEF;
+            endcase
+            $display("DUT READ: Addr=%h, Data=%h", paddr, prdata);
+        end
+        pready <= 1'b1; // Indicate transaction completion
+        state <= TRANSFER; // Move to the next state
+    end else begin
+        pready <= 1'b0; // Ensure pready is low if not in a valid transaction
+    end  
       end
-
-   end
-
- 
-  
- 
+TRANSFER: begin
+    pready <= 1'b0; // Deassert pready after the transaction
+    state <= IDLE;  // Return to IDLE for the next transaction
+    $display("TRANSFER: Transaction done, returning to IDLE");
+end
+            endcase
+        end
+    end
 endmodule
