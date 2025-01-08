@@ -1,4 +1,4 @@
-  module top;
+ module top;
   import uvm_pkg::*;
  // import my_pkg::*;
   
@@ -8,6 +8,7 @@
   bit presetn;
   
   always #10 pclk = ~pclk;
+
 
     initial begin
         presetn = 0;  // Assert reset
@@ -24,7 +25,8 @@
                 .psel    (apb_if.psel),
                 .pwrite  (apb_if.pwrite),
                 .pready  (apb_if.pready),
-                .penable (apb_if.penable));
+                .penable (apb_if.penable),
+                .pslverr(apb_if.pslverr));
 
   initial begin 
     
@@ -56,5 +58,4 @@
     $coverage_save("fcover.acdb");
     $display("Functional Coverage saved to fcover.acdb");
 end
-
 endmodule
