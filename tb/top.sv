@@ -1,6 +1,6 @@
-module top;
+ module top;
   import uvm_pkg::*;
-  import my_pkg::*;
+ // import my_pkg::*;
   
   parameter min_cover = 70;
   parameter min_transa = 2000;
@@ -9,10 +9,11 @@ module top;
   
   always #10 pclk = ~pclk;
 
-  initial begin
-    presetn = 0;
-    #10 presetn = 1;
-  end
+
+    initial begin
+        presetn = 0;  // Assert reset
+        #50 presetn = 1;  // Deassert reset after 50 time units
+    end
 
   apb_if   apb_if (pclk, presetn);
 
@@ -23,14 +24,17 @@ module top;
                 .prdata  (apb_if.prdata),
                 .psel    (apb_if.psel),
                 .pwrite  (apb_if.pwrite),
-                .penable (apb_if.penable));
+                .pready  (apb_if.pready),
+                .penable (apb_if.penable),
+                .pslverr(apb_if.pslverr));
 
   initial begin 
+    
     `ifdef XCELIUM
        $recordvars();
     `endif
     `ifdef VCS
-       $vcdpluson;
+    //   $vcdpluson;
     `endif
     `ifdef QUESTA
        $wlfdumpvars();
@@ -39,5 +43,19 @@ module top;
     
     uvm_config_db #(virtual apb_if)::set (null, "uvm_test_top.*", "apb_if", apb_if);
     run_test ("reg_rw_test");
+    
   end
+   initial begin
+    $dumpfile("dump.vcd"); 
+    $dumpvars;
+    #10000;
+    $finish();
+  end
+    
+    
+    initial begin
+    $coverage_control("all", "on");
+    $coverage_save("fcover.acdb");
+    $display("Functional Coverage saved to fcover.acdb");
+end
 endmodule

@@ -35,29 +35,38 @@ class apb_driver extends uvm_driver #(apb_tr);
       end
    endtask
  
-   virtual task read (  input bit    [31:0] addr, 
-                        output logic [31:0] data);
-      vif.paddr <= addr;
-      vif.pwrite <= 0;
-      vif.psel <= 1;
-      @(posedge vif.pclk);
-      vif.penable <= 1;
-      @(posedge vif.pclk);
-      data = vif.prdata;
-      vif.psel <= 0;
-      vif.penable <= 0;
-   endtask
- 
-   virtual task write ( input bit [31:0] addr,
-                        input bit [31:0] data);
-      vif.paddr <= addr;
-      vif.pwdata <= data;
-      vif.pwrite <= 1;
-      vif.psel <= 1;
-      @(posedge vif.pclk);
-      vif.penable <= 1;
-      @(posedge vif.pclk);
-      vif.psel <= 0;
-      vif.penable <= 0;
-   endtask
+   virtual task write(input bit [31:0] addr, input bit [31:0] data);
+    vif.paddr <= addr;
+    vif.pwdata <= data;
+    vif.pwrite <= 1;
+    vif.psel <= 1;
+    @(posedge vif.pclk);
+    vif.penable <= 1;
+
+    // Wait for pready to be asserted
+    wait (vif.pready == 1);
+    @(posedge vif.pclk);
+    $display("DRIVER WRITE: Addr=%h, Data=%h, pready=%b", addr, data, vif.pready);
+
+    vif.psel <= 0;
+    vif.penable <= 0;
+endtask
+
+virtual task read(input bit [31:0] addr, output logic [31:0] data);
+    vif.paddr <= addr;
+    vif.pwrite <= 0;
+    vif.psel <= 1;
+    @(posedge vif.pclk);
+    vif.penable <= 1;
+
+    // Wait for pready to be asserted
+    wait (vif.pready == 1);
+    @(posedge vif.pclk);
+    data = vif.prdata;
+    $display("DRIVER READ: Addr=%h, Data=%h, pready=%b", addr, data, vif.pready);
+
+    vif.psel <= 0;
+    vif.penable <= 0;
+endtask
+     
 endclass
