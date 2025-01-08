@@ -21,6 +21,7 @@ module traffic (
 
     // Reset and initialization
     always @(posedge pclk or negedge presetn) begin
+        if (!(paddr inside {0, 4, 8})) begin pslverr <=1;end
         if (!presetn) begin
             // Reset all internal states and registers
             state <= IDLE;
